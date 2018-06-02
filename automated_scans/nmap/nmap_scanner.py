@@ -8,10 +8,12 @@ from automated_scans.nmap.nmap_results import NmapResults
 
 
 class NmapScanner:
+    def __init__(self):
+        pass
 
-    def run_nmap_scan(self):
-        parsed = None
-        nmap_proc = NmapProcess(targets="10.10.10.3", options="")
+    def run_nmap_scan(self, target):
+        nmap_proc = NmapProcess(targets="10.10.10.0/24", options="-O") # "-sS -A -v")
+        #nmap_proc = NmapProcess(targets="10.10.10.2", options="-O")  # "-sS -A -v")
         nmap_proc.run_background()
 
         while nmap_proc.is_running():
