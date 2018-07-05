@@ -1,3 +1,4 @@
+import threading
 import uuid
 
 from django.core.serializers.json import DjangoJSONEncoder
@@ -8,7 +9,8 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, mixins, generics
 from rest_framework.parsers import JSONParser
 from rest_framework.renderers import JSONRenderer
-from rest_framework.response import Response #Wrapper, the correct data is handled rather than having to manually do it ourself
+from rest_framework.response import \
+    Response  # Wrapper, the correct data is handled rather than having to manually do it ourself
 from rest_framework.views import APIView
 
 from automated_scans import vulnerability_assessment
@@ -22,13 +24,17 @@ import json
 # Create your views here.
 from authentication.utils import jsonDefault
 from automated_scans.openvas.openvas_results import OpenVasResults
+from automated_scans.results.scan_results import ScanResults
 from automated_scans.vulnerability_assessment import VulnerabilityAssessment
+from automated_scans.security import cryptography
+from threading import Thread
 
 vulnerability_assessment = VulnerabilityAssessment()
 
-@csrf_exempt # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
+
+@csrf_exempt  # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
 def register_network(request):
-   # users = User.objects.all() #need to loop through emails and usernames to make sure they're unique
+    # users = User.objects.all() #need to loop through emails and usernames to make sure they're unique
     if request.method == 'POST':
         net_type = request.POST['network_type']
         network = NetworkType(network_type=net_type)
@@ -36,20 +42,22 @@ def register_network(request):
         return Response(status=status.HTTP_200_OK)
     return Response(status=status.HTTP_400_BAD_REQUEST)
 
-@csrf_exempt # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
+
+@csrf_exempt  # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
 @api_view(['GET', 'POST', ])
 def get_network_type(request, pk):
     try:
         network_type = NetworkType.objects.get(pk=pk)
     except NetworkType.DoesNotExist:
-        return Response(status=status.HTTP_400_BAD_REQUEST) # Working = HttpResponse(status=404)
-#REMEMBER TO PASS IN THE CONTENT TYPE YOU WANT RETURNED WHEN USING Response() Wrapper
+        return Response(status=status.HTTP_400_BAD_REQUEST)  # Working = HttpResponse(status=404)
+    # REMEMBER TO PASS IN THE CONTENT TYPE YOU WANT RETURNED WHEN USING Response() Wrapper
     if request.method == 'POST':
         the_network_type = NetworkTypeSerializer(network_type)
-        return Response(the_network_type.data, status=status.HTTP_200_OK) #working = return JsonResponse(the_network_type.data)
+        return Response(the_network_type.data,
+                        status=status.HTTP_200_OK)  # working = return JsonResponse(the_network_type.data)
 
 
-@csrf_exempt # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
+@csrf_exempt  # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
 @api_view(['GET', 'POST', ])
 def update_network_type(request, pk):
     try:
@@ -64,7 +72,7 @@ def update_network_type(request, pk):
         return Response(status=status.HTTP_200_OK)
 
 
-@csrf_exempt # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
+@csrf_exempt  # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
 @api_view(['GET', 'POST', ])
 def delete_network_type(request, pk):
     try:
@@ -79,7 +87,7 @@ def delete_network_type(request, pk):
         return Response(status=status.HTTP_200_OK)
 
 
-@api_view(['GET', 'POST']) #This is good to have a browsable view of the API
+@api_view(['GET', 'POST'])  # This is good to have a browsable view of the API
 def network_type_list(request, format=None):
     """
     List all network devices.
@@ -89,7 +97,7 @@ def network_type_list(request, format=None):
     return Response(network_types_serialized.data)
 
 
-@api_view(['GET', 'POST']) #This is good to have a browsable view of the API
+@api_view(['GET', 'POST'])  # This is good to have a browsable view of the API
 def network_type_detail(request, pk, format=None):
     """
     List all network devices.
@@ -103,22 +111,21 @@ def network_type_detail(request, pk, format=None):
     return Response(network_type_detail_serialized.data)
 
 
-class NetworkTypeList(APIView):#Class Based View. The function based view is def network_type_list
+class NetworkTypeList(APIView):  # Class Based View. The function based view is def network_type_list
     def post(self, request, format=None):
         network_types = NetworkType.objects.all()
         network_types_serialized = NetworkTypeSerializer(network_types, many=True)
         return Response(network_types_serialized.data)
 
 
-#Class base allow the use of reusable behaviour by using Mixins. Common behaviour can be seperated as shown below.
+# Class base allow the use of reusable behaviour by using Mixins. Common behaviour can be seperated as shown below.
 class NetworkTypeListMixing(generics.ListCreateAPIView):
     queryset = NetworkType.objects.all()
     serializer_class = NetworkTypeSerializer
 
+
 @csrf_exempt
 def register_network(request):
-
-
     users = User.objects.all()
     if request.method == 'POST':
         username = request.POST['username']
@@ -128,8 +135,9 @@ def register_network(request):
         network_type = request.POST['network-type']
         password = request.POST['password']
 
-        #check is user exists (by username
-        #compare passwords
+        # check is user exists (by username
+        # compare passwords
+
 
 @csrf_exempt
 @api_view(['GET', 'POST', ])
@@ -140,11 +148,11 @@ def register_user(request):
 
         if User.objects.filter(email=email).exists():
             data = {'success': 'false'}
-            #json = JSONRenderer().render(data)
-            #print(json)
+            # json = JSONRenderer().render(data)
+            # print(json)
             return Response(data=data, status=status.HTTP_409_CONFLICT)
             print("not returned")
-           # return Response(status=status.HTTP_409_CONFLICT)
+        # return Response(status=status.HTTP_409_CONFLICT)
         if email != -1 and password != -1:
             User.objects.create(  # Check serializers for the bcrypt hashing
                 email=email,
@@ -181,7 +189,7 @@ def register_network_config(request):
     network_device = NetworkDevice.objects.get(pk=1)
 
     if request.method == 'POST':
-        password = request.POST['password'] #device password
+        password = request.POST['password']  # device password
         net_type = request.POST['network_type']
         conf_name = request.POST['config_name']
 
@@ -202,67 +210,102 @@ def register_network_config(request):
 
     return Response(status=status.HTTP_403_FORBIDDEN)
 
+
 @csrf_exempt
 @api_view(['GET', 'POST', ])
-def run_scan(request):
-        vulnerability_assessment.run_all()
-        scan_id = vulnerability_assessment.scan_results[-1].scan_id
-        scanid_as_string = str(scan_id)
-        data = {'scan-started' : 'true', 'scan-id' : scanid_as_string}
-        print(scan_id)
-        jsonResponse = json.dumps(data, default=jsonDefault)
-        return HttpResponse(jsonResponse, content_type="application/json")
+def run_vulnerability_scan(request):
+    print('Request to perform openvas')
+    scan_results = ScanResults()
+    hosts = []
+    if request.method == 'POST':
+        hosts = request.POST['hosts']
+        key = '1234567890123456'.encode('utf-8')  # Add user key
+        print('Hosts to scan: ' +hosts)
+
+    t1 = threading.Thread(target=vulnerability_assessment.run_openvas_Scan, args=(scan_results, hosts, key))
+    t1.start()
+
+    data = {'scan-started': 'true', 'scan-id': scan_results.scan_id, 'action': 'openvas_scan_started'}
+    jsonResponse = json.dumps(data, default=jsonDefault)
+    return HttpResponse(jsonResponse, content_type="application/json")
+
+
+@csrf_exempt
+@api_view(['GET', 'POST', ])
+def run_nmap_scan(request):
+    print('Request to perform nmap scan')
+    scan_results = ScanResults()
+    t1 = threading.Thread(target=vulnerability_assessment.run_nmap_scan, args=(scan_results,))
+    t1.start()
+
+    data = {'scan-started': 'true', 'scan-id': scan_results.scan_id, 'action': 'nmap_scan_started'}
+    jsonResponse = json.dumps(data, default=jsonDefault)
+    return HttpResponse(jsonResponse, content_type="application/json", status=200)
 
 @csrf_exempt
 @api_view(['GET', 'POST', ])
 def check_scan_status(request):
-    data = {'scan-finished': 'false'}
-    #if request.method == 'POST':
-        #scanID = request.POST['scan-id']
-    scan_id = vulnerability_assessment.scan_results[-1].scan_id #TODO NEED TO CHANGE THIS - The user will send the Scan ID
+    data = {'action' : 'scan-status', 'scan-finished': 'false'}
+    if request.method == 'POST':
+        scan_id = request.POST['scan-id']
+    if vulnerability_assessment.scan_results:
 
-    for scan_result in vulnerability_assessment.scan_results:
-        if scan_result.scan_id == scan_id:
-            if scan_result.results_collected is True:
-                data = {'scan-finished': 'true'}
-                json_response = json.dumps(data, default=jsonDefault)
-                scan_result.results_collected = False
-                return HttpResponse(json_response, content_type="application/json")
+        for scan_result in vulnerability_assessment.scan_results:
+            if str(scan_result.scan_id) == scan_id:
+                if scan_result.results_collected is True:
+                    data = {'action' : 'scan-status', 'scan-finished': 'true'}
+                    json_response = json.dumps(data, default=jsonDefault)
+                    return HttpResponse(json_response, content_type="application/json", status=status.HTTP_200_OK)
     json_response = json.dumps(data, default=jsonDefault)
-    return HttpResponse(json_response, content_type="application/json")
+    return HttpResponse(json_response, content_type="application/json", status=status.HTTP_404_NOT_FOUND)
 
 
 @csrf_exempt
 @api_view(['GET', 'POST', ])
-def get_results(request):
-    #if request.method == 'POST':
-        #scanID = request.POST['scan-id']
-    scan_id = vulnerability_assessment.scan_results[-1].scan_id #TODO Need to change this - The usr will send the scan ID
+def get_pending_results(request):
+    if request.method == 'POST':
+        scan_id = request.POST['scan-id']
+        results_type = request.POST['result-type']
+        key = '1234567890123456'.encode('utf-8')  # Add user key
 
-    for scan_result in vulnerability_assessment.scan_results:
-        if scan_result.scan_id == scan_id:
-            json_response = json.dumps(scan_result, default=jsonDefault)
-            #vulnerability_assessment.scan_results.remove(scan_result)
-            return HttpResponse(json_response, content_type="application/json")
-            #return JsonResponse(scan_result.openvas_result.data, status=200)
-    data = {'error': 'unable to retrieve'}
+        for scan_result in vulnerability_assessment.scan_results:
+            if str(scan_result.scan_id) == scan_id:
+                if results_type == 'openvas-results':
+                    print("Retrieving OpenVas result")
+                    openvas_result = OpenVasResults()
+                    openvas_report = openvas_result.get_report(scan_result.file_path, key)
+                    scan_result.openvas_result.append(openvas_report)
+
+                json_response = json.dumps(scan_result, default=jsonDefault)
+                if results_type == 'openvas-results':
+                    scan_result.openvas_result.remove(openvas_report)
+                if results_type == 'nmap-scan':
+                    scan_result.nmap_result = None
+                return HttpResponse(json_response, content_type="application/json", status=status.HTTP_200_OK)
+    data = {'error': 'Unable to retrieve results'}
     json_response = json.dumps(data, default=jsonDefault)
     return HttpResponse(json_response, content_type="application/json")
 
+@csrf_exempt
+@api_view(['GET', 'POST', ])
+def get_stored_results(request):
+    if request.method == 'POST':
+        scan_id = request.POST['scan-id']
+        results_type = request.POST['result-type']
+        key = '1234567890123456'.encode('utf-8')  # Add user key
 
+        scan_result = ScanResults()
+        openvas_result = OpenVasResults()
+        openvas_report = openvas_result.get_report("/root/Desktop/FinalYearProjectRESTAPI/automated_scans/reports/"+str(scan_id)+".xml", key)
+        scan_result.openvas_result.append(openvas_report)
+        scan_result.results_collected = True
+        json_response = json.dumps(scan_result, default=jsonDefault)
 
+        return HttpResponse(json_response, content_type="application/json", status=status.HTTP_200_OK)
 
-
-
-        #data = JSONRenderer.render(nmap_results)
-
-       # return JsonResponse({'status':'false', 'data':data}, status=500)
-
-
-
-
-       # return Response(status=status.HTTP_200_OK, data=nmap_results)
-
+    data = {'error': 'Unable to retrieve results'}
+    json_response = json.dumps(data, default=jsonDefault)
+    return HttpResponse(json_response, content_type="application/json")
 '''
     config_name = models.CharField(max_length=256)
     device=models.ForeignKey(NetworkDevice, on_delete=models.CASCADE)

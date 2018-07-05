@@ -2,14 +2,21 @@ from openvas_lib import report_parser
 
 from authentication.models import Vulnerability, VulnerabilityURL, Url, VulnerabilityFamily, MitigationType, ThreatLevel
 from authentication.serializers import VulnerabilitySerializer, UrlInfoSerializer
+import os
+
+from automated_scans.security.cryptography import Encryptor
 
 
 class OpenVasResults:
     def __init__(self):
         pass
 
-    def get_report(self):
-        report = report_parser("/var/log/openvas/result2.xml")
+    def get_report(self, openvas_results_encrypted_xml, key):
+        print('Getting report')
+        encryptor = Encryptor(key)
+        encryptor.decrypt_file(openvas_results_encrypted_xml+'.enc')
+        report = report_parser(openvas_results_encrypted_xml) #-4 to remove .enc extensions
+        os.remove(openvas_results_encrypted_xml)
         vulnResult = None
         scanResults = []
         for result in report:
@@ -17,9 +24,6 @@ class OpenVasResults:
                 vulnResult = Vulnerability.objects.get(vulnerabilityId=result.nvt.oid)
 
                 serializedResult = VulnerabilitySerializer(vulnResult)
-
-
-
 
                 scanResult = {}
                 #This is for setting values from the object returned from the scan, and getting values from Foreign Key fields

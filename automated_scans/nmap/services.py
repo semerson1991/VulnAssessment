@@ -4,4 +4,5 @@ class Services:
         self.service = service.service
         self.port = service.port
         self.state = service.state
+        self.reason = service.reason
 
