@@ -11,12 +11,12 @@ class OpenVasResults:
     def __init__(self):
         pass
 
-    def get_report(self, openvas_results_encrypted_xml, key):
+    def get_results(self, openvas_results_path, key):
         print('Getting report')
         encryptor = Encryptor(key)
-        encryptor.decrypt_file(openvas_results_encrypted_xml+'.enc')
-        report = report_parser(openvas_results_encrypted_xml) #-4 to remove .enc extensions
-        os.remove(openvas_results_encrypted_xml)
+        encryptor.decrypt_file(openvas_results_path + '.enc')
+        report = report_parser(openvas_results_path) #-4 to remove .enc extensions
+        os.remove(openvas_results_path)
         vulnResult = None
         scanResults = []
         for result in report:

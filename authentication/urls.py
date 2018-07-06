@@ -23,8 +23,8 @@ urlpatterns = [
     url(r'^run-nmap-scan/$', views.run_nmap_scan),
 
     url(r'^check-scan-status/$', views.check_scan_status),
-    url(r'^get-results/$', views.get_pending_results),
-    url(r'^get-stored-results/$', views.get_stored_results),
+    url(r'^get-results/$', views.get_stored_results),
+   # url(r'^get-stored-results/$', views.get_stored_results),
 
     url(r'^view-network-type-details/(?P<pk>[0-9]+)/$', views.network_type_detail),
     #url(r'^authentication/(?P<pk>[0-9]+)/$', views.snippet_detail),

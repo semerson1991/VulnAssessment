@@ -7,6 +7,8 @@ class ScanResults():
         self.openvas_result = []
         self.results_collected = False
         self.scan_id = str(utils.create_uuid())
+        self.network_discovery_path = None
+        self.vuln_assessment_path = None
         self.action = 'results-collected' #THIS COULD BE ADDED SEPERATELY INSTEAD (Before sending back to client)
 
 

@@ -23,6 +23,7 @@ from automated_scans import vulnerability_assessment
 import json
 # Create your views here.
 from authentication.utils import jsonDefault
+from automated_scans.nmap.nmap_results import NmapResult
 from automated_scans.openvas.openvas_results import OpenVasResults
 from automated_scans.results.scan_results import ScanResults
 from automated_scans.vulnerability_assessment import VulnerabilityAssessment
@@ -217,6 +218,7 @@ def run_vulnerability_scan(request):
     print('Request to perform openvas')
     scan_results = ScanResults()
     hosts = []
+    key = ""
     if request.method == 'POST':
         hosts = request.POST['hosts']
         key = '1234567890123456'.encode('utf-8')  # Add user key
@@ -234,8 +236,12 @@ def run_vulnerability_scan(request):
 @api_view(['GET', 'POST', ])
 def run_nmap_scan(request):
     print('Request to perform nmap scan')
+    key = ""
+    if request.method == 'POST':
+        key = '1234567890123456'.encode('utf-8')  # Add user key
+
     scan_results = ScanResults()
-    t1 = threading.Thread(target=vulnerability_assessment.run_nmap_scan, args=(scan_results,))
+    t1 = threading.Thread(target=vulnerability_assessment.run_nmap_scan, args=(scan_results, key))
     t1.start()
 
     data = {'scan-started': 'true', 'scan-id': scan_results.scan_id, 'action': 'nmap_scan_started'}
@@ -273,8 +279,13 @@ def get_pending_results(request):
                 if results_type == 'openvas-results':
                     print("Retrieving OpenVas result")
                     openvas_result = OpenVasResults()
-                    openvas_report = openvas_result.get_report(scan_result.file_path, key)
+                    openvas_report = openvas_result.get_results(scan_result.vuln_assessment_path, key)
                     scan_result.openvas_result.append(openvas_report)
+                if results_type == 'nmap-results':
+                    print("Retrieving Network Mapping Results")
+                    nmap_result = NmapResult()
+                    nmap_result.get_results(scan_result.network_discovery_path, key)
+                    scan_result.nmap_result = nmap_result
 
                 json_response = json.dumps(scan_result, default=jsonDefault)
                 if results_type == 'openvas-results':
@@ -282,6 +293,7 @@ def get_pending_results(request):
                 if results_type == 'nmap-scan':
                     scan_result.nmap_result = None
                 return HttpResponse(json_response, content_type="application/json", status=status.HTTP_200_OK)
+
     data = {'error': 'Unable to retrieve results'}
     json_response = json.dumps(data, default=jsonDefault)
     return HttpResponse(json_response, content_type="application/json")
@@ -295,12 +307,25 @@ def get_stored_results(request):
         key = '1234567890123456'.encode('utf-8')  # Add user key
 
         scan_result = ScanResults()
-        openvas_result = OpenVasResults()
-        openvas_report = openvas_result.get_report("/root/Desktop/FinalYearProjectRESTAPI/automated_scans/reports/"+str(scan_id)+".xml", key)
-        scan_result.openvas_result.append(openvas_report)
-        scan_result.results_collected = True
-        json_response = json.dumps(scan_result, default=jsonDefault)
+        path = "/root/Desktop/FinalYearProjectRESTAPI/automated_scans/reports/"
+        path_prefix = ".xml"
 
+        if results_type == 'openvas-results':
+            print("Retrieving OpenVas result")
+            openvas_result = OpenVasResults()
+            openvas_report = openvas_result.get_results(path+ str(scan_id) + path_prefix, key)
+            scan_result.openvas_result.append(openvas_report)
+        if results_type == 'nmap-results':
+            print("Retrieving Network Mapping Results")
+            nmap_result = NmapResult()
+            nmap_result.get_results(path+ str(scan_id) + path_prefix, key)
+            scan_result.nmap_result = nmap_result
+
+        json_response = json.dumps(scan_result, default=jsonDefault)
+        if results_type == 'openvas-results':
+            scan_result.openvas_result.remove(openvas_report)
+        if results_type == 'nmap-scan':
+            scan_result.nmap_result = None
         return HttpResponse(json_response, content_type="application/json", status=status.HTTP_200_OK)
 
     data = {'error': 'Unable to retrieve results'}

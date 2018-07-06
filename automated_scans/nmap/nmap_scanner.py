@@ -11,7 +11,7 @@ class NmapScanner:
     def __init__(self):
         pass
 
-    def run_nmap_scan(self, targets):
+    def run_nmap_scan(self, targets, scan_id):
         #nmap_proc = NmapProcess(targets="10.10.10.0/24", options="-A") # "-sS -A -v")
         nmap_proc = NmapProcess(targets=targets, options="-O")  # "-sS -A -v")
         nmap_proc.run_background()
@@ -21,11 +21,17 @@ class NmapScanner:
                                                                   nmap_proc.progress))
         sleep(7)
 
-        nmap_report = NmapParser.parse(nmap_proc.stdout)
+        #Store in file
+        file_path = "/root/Desktop/FinalYearProjectRESTAPI/automated_scans/reports/"+str(scan_id)+".xml"
+        file = open(file_path, "w")
+        data = nmap_proc.stdout
+        file.write(data)
+        file.close()
 
-        nmap_result = NmapResult()
-        nmap_result.add_hosts(nmap_report)
-        return nmap_result
+        print(data)
+        print(type(data))
+
+        return file_path
 
 
 if __name__ == "__main__":
