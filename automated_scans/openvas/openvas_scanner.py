@@ -11,7 +11,8 @@ class OpenvasScanner:
     def __init__(self):
         pass
 
-    def run_openvas_scan(self, hosts, scan_id):
+    def run_openvas_scan(self, hosts, scan_id, scanType):
+        print('vulnerability scan type: ' + scanType)
         # CREATE TARGET
         cmd_create_target = ['omp',
                              '--xml=<create_target><name>Targets</name><hosts>' + hosts + '</hosts><port_list>33d0cd82-57c6-11e1-8ed1-406186ea4fc5</port_list></create_target>',
@@ -30,11 +31,20 @@ class OpenvasScanner:
         print('Target Id:' + target_id)
 
         sleep(5)
-
         # CREATE TASK
-        cmd_create_task = ['omp',
-                           '--xml=<create_task><name>new_task</name><preferences><preference><scanner_name>source_iface</scanner_name><value>eth1</value></preference></preferences><config id="daba56c8-73ec-11df-a475-002264764cea"/><target id="' + target_id + '"/></create_task>',
-                           '--username', 'admin', '--password', 'testingpassword', ]
+        cmd_create_task = ''
+        if scanType == 'Full and Fast Scan':
+            cmd_create_task = ['omp', '--xml=<create_task><name>new_task</name><preferences><preference><scanner_name>source_iface</scanner_name><value>eth1</value></preference></preferences>'
+                                      '<config id="daba56c8-73ec-11df-a475-002264764cea"/><target id="' + target_id + '"/></create_task>','--username', 'admin', '--password', 'testingpassword', ]
+        elif scanType == 'Full and Deep Scan':
+            cmd_create_task = ['omp', '--xml=<create_task><name>new_task</name><preferences><preference><scanner_name>source_iface</scanner_name><value>eth1</value></preference></preferences>'
+                                      '<config id="708f25c4-7489-11df-8094-002264764cea"/><target id="' + target_id + '"/></create_task>','--username', 'admin', '--password', 'testingpassword', ]
+        elif scanType == 'Full and Fast Ultimate':
+            cmd_create_task = ['omp', '--xml=<create_task><name>new_task</name><preferences><preference><scanner_name>source_iface</scanner_name><value>eth1</value></preference></preferences>'
+                                      '<config id="698f691e-7489-11df-9d8c-002264764cea"/><target id="' + target_id + '"/></create_task>','--username', 'admin', '--password', 'testingpassword', ]
+        elif scanType == 'Full and Deep Ultimate':
+            cmd_create_task = ['omp', '--xml=<create_task><name>new_task</name><preferences><preference><scanner_name>source_iface</scanner_name><value>eth1</value></preference></preferences>'
+                                      '<config id="74db13d6-7489-11df-91b9-002264764cea"/><target id="' + target_id + '"/></create_task>','--username', 'admin', '--password', 'testingpassword', ]
         print('Creating Task')
         create_task_output = self.get_cmd_output_ascii(cmd_create_task)
         print(create_task_output)

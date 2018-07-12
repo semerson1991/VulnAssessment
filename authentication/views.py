@@ -14,7 +14,7 @@ from rest_framework.response import \
 from rest_framework.views import APIView
 
 from automated_scans import vulnerability_assessment
-from authentication.models import NetworkType, UserNetworkConfig, NetworkDevice, ActiveScans
+from authentication.models import NetworkType, UserNetworkConfig, NetworkDevice, AdminUsers
 from authentication.serializers import UserSerializer, NetworkTypeSerializer
 from authentication import utils
 from rest_framework.decorators import api_view
@@ -23,6 +23,7 @@ from automated_scans import vulnerability_assessment
 import json
 # Create your views here.
 from authentication.utils import jsonDefault
+from automated_scans.nmap.nmap_scan_config import NmapScanConfig
 from automated_scans.nmap.nmap_results import NmapResult
 from automated_scans.openvas.openvas_results import OpenVasResults
 from automated_scans.results.scan_results import ScanResults
@@ -97,44 +98,35 @@ def network_type_list(request, format=None):
     network_types_serialized = NetworkTypeSerializer(network_types, many=True)
     return Response(network_types_serialized.data)
 
-
-@api_view(['GET', 'POST'])  # This is good to have a browsable view of the API
-def network_type_detail(request, pk, format=None):
-    """
-    List all network devices.
-    """
-    try:
-        the_network_type = NetworkType.objects.get(pk=pk)
-    except NetworkType.DoesNotExist:
-        return Response(status=status.HTTP_400_BAD_REQUEST)  # Working = HttpResponse(status=404)
-
-    network_type_detail_serialized = NetworkTypeSerializer(the_network_type)
-    return Response(network_type_detail_serialized.data)
-
-
-class NetworkTypeList(APIView):  # Class Based View. The function based view is def network_type_list
-    def post(self, request, format=None):
-        network_types = NetworkType.objects.all()
-        network_types_serialized = NetworkTypeSerializer(network_types, many=True)
-        return Response(network_types_serialized.data)
-
-
-# Class base allow the use of reusable behaviour by using Mixins. Common behaviour can be seperated as shown below.
-class NetworkTypeListMixing(generics.ListCreateAPIView):
-    queryset = NetworkType.objects.all()
-    serializer_class = NetworkTypeSerializer
-
-
 @csrf_exempt
-def register_network(request):
+@api_view(['GET', 'POST', ])
+def register_network_config(request):
     users = User.objects.all()
     if request.method == 'POST':
         username = request.POST['username']
-        email = request.POST['email']
-
         config_name = request.POST['config-name']
         network_type = request.POST['network-type']
         password = request.POST['password']
+
+        network_device = NetworkDevice.objects.first()
+
+        print (username + ' ' + config_name + ' ' + network_type + ' ' + password)
+
+        if network_device.password == password:
+            if User.objects.filter(username=username).exists():
+                user = User.objects.get(username=username)
+                net_type = NetworkType.objects.get(network_type=network_type)
+                UserNetworkConfig.objects.create(
+                    network_name=config_name,
+                    user=user,
+                    network_type=net_type,
+                )
+                data = {'success': 'true'}
+                return Response(data=data, status=status.HTTP_200_OK)
+        data = {'success': 'false', 'reason':'incorrect_password'}
+        return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
+    data = {'success': 'false', 'reason': 'incorrect_password'}
+    return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
 
         # check is user exists (by username
         # compare passwords
@@ -144,22 +136,37 @@ def register_network(request):
 @api_view(['GET', 'POST', ])
 def register_user(request):
     if request.method == 'POST':
-        email = request.POST.get('email', -1)
-        password = request.POST.get('password', -1)
+        email = request.POST.get('email', "")
+        password = request.POST.get('password', "")
+        alias = request.POST.get('nickname', "")
+        app_admin = request.POST.get('app-admin', "")
 
+        admin_users = AdminUsers.objects.all()
+        #if len(admin_users) > 0:
+         #   print('Admins exist. Requesting permission for newuser')
+          #  for user in admin_users.iterator():
+           #     user = User.objects.get(id=user.id)
+            #    print(user.email)
+            # data = {'success': 'false', 'reason': 'admin-approval-required'}
+            # return Response(data=data, status=status.HTTP_200_OK)
         if User.objects.filter(email=email).exists():
-            data = {'success': 'false'}
+            print('user exists')
+            data = {'success': 'false', 'reason' : 'user-exists'}
             # json = JSONRenderer().render(data)
             # print(json)
             return Response(data=data, status=status.HTTP_409_CONFLICT)
-            print("not returned")
-        # return Response(status=status.HTTP_409_CONFLICT)
         if email != -1 and password != -1:
-            User.objects.create(  # Check serializers for the bcrypt hashing
+            print('creating user')
+            User.objects.create(
                 email=email,
                 password=password,
-                username=email,
+                username=alias,
             )
+            if app_admin == "True":
+                print('Requested user as an admin')
+                AdminUsers.objects.create(
+                    user=User.objects.get(email=email)
+                )
             data = {'success': 'true'}
             return Response(data=data, status=status.HTTP_200_OK)
         data = {'success': 'false'}
@@ -177,39 +184,10 @@ def login_user(request):
         if User.objects.filter(email=email).exists():
             user = User.objects.get(email=email)
             if user.password == the_password:
-                data = {'success': 'true'}
+                data = {'success': 'true', 'nickname' : user.username}
                 return Response(data=data, status=status.HTTP_200_OK)
-
         return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
     return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
-
-
-@csrf_exempt
-@api_view(['GET', 'POST', ])
-def register_network_config(request):
-    network_device = NetworkDevice.objects.get(pk=1)
-
-    if request.method == 'POST':
-        password = request.POST['password']  # device password
-        net_type = request.POST['network_type']
-        conf_name = request.POST['config_name']
-
-        email = request.POST['email']
-
-        if User.objects.filter(email=email).exists():
-            user = User.objects.get(email=email)
-            if NetworkType.objects.filter(network_type=net_type).exists():
-                network_type = NetworkType.objects.get(network_type=net_type)
-                if password == network_device.password:
-                    UserNetworkConfig.objects.create(
-                        config_name=conf_name,
-                        user=user,
-                        network_type=network_type,
-                    )
-                    return Response(status=status.HTTP_200_OK)
-            return Response(status=status.HTTP_403_FORBIDDEN)
-
-    return Response(status=status.HTTP_403_FORBIDDEN)
 
 
 @csrf_exempt
@@ -221,10 +199,11 @@ def run_vulnerability_scan(request):
     key = ""
     if request.method == 'POST':
         hosts = request.POST['hosts']
+        scan_type = request.POST['vulnerability-scan-type']
         key = '1234567890123456'.encode('utf-8')  # Add user key
         print('Hosts to scan: ' +hosts)
 
-    t1 = threading.Thread(target=vulnerability_assessment.run_openvas_Scan, args=(scan_results, hosts, key))
+    t1 = threading.Thread(target=vulnerability_assessment.run_openvas_scan, args=(scan_results, hosts, key, scan_type))
     t1.start()
 
     data = {'scan-started': 'true', 'scan-id': scan_results.scan_id, 'action': 'openvas_scan_started'}
@@ -237,11 +216,19 @@ def run_vulnerability_scan(request):
 def run_nmap_scan(request):
     print('Request to perform nmap scan')
     key = ""
+    nmapScanConfig = NmapScanConfig()
     if request.method == 'POST':
+        nmapScanConfig.scan_technique = request.POST['network-scan-technique']
+        nmapScanConfig.scanType = request.POST['network-scan-type']
+        nmapScanConfig.port_range = request.POST['port-range']
+        nmapScanConfig.hosts = request.POST['network-scan-hosts']
+        nmapScanConfig.detections_ops = request.POST['network-detection-ops']
+        nmapScanConfig.custom_args = request.POST['network-scan-custom-args']
+
         key = '1234567890123456'.encode('utf-8')  # Add user key
 
     scan_results = ScanResults()
-    t1 = threading.Thread(target=vulnerability_assessment.run_nmap_scan, args=(scan_results, key))
+    t1 = threading.Thread(target=vulnerability_assessment.run_nmap_scan, args=(scan_results, key, nmapScanConfig))
     t1.start()
 
     data = {'scan-started': 'true', 'scan-id': scan_results.scan_id, 'action': 'nmap_scan_started'}
@@ -255,9 +242,12 @@ def check_scan_status(request):
     if request.method == 'POST':
         scan_id = request.POST['scan-id']
     if vulnerability_assessment.scan_results:
-
         for scan_result in vulnerability_assessment.scan_results:
             if str(scan_result.scan_id) == scan_id:
+                if scan_result.error != '':
+                    data = {'action': 'scan-status', 'scan-finished': 'true', 'error' : scan_result.error}
+                    json_response = json.dumps(data, default=jsonDefault)
+                    return HttpResponse(json_response, content_type="application/json", status=status.HTTP_404_NOT_FOUND)
                 if scan_result.results_collected is True:
                     data = {'action' : 'scan-status', 'scan-finished': 'true'}
                     json_response = json.dumps(data, default=jsonDefault)

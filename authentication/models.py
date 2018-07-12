@@ -6,6 +6,13 @@ import bcrypt
 from django.contrib.auth.models import User
 
 
+class AdminUsers(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return str(self.user.username)
+
+
 class NetworkDevice(models.Model):
     name = models.CharField(max_length=200, default='Home Network Device')
     password = models.CharField(max_length=256)
@@ -25,27 +32,12 @@ class NetworkType(models.Model):
 
 
 class UserNetworkConfig(models.Model):
-    config_name = models.CharField(max_length=256)
-    #device=models.ForeignKey(NetworkDevice, on_delete=models.CASCADE)
+    network_name = models.CharField(max_length=256)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     network_type = models.ForeignKey(NetworkType, on_delete=models.CASCADE)
 
     def __str__(self):
-        return str(self.id) + " " +self.config_name
-
-
-class ActiveScans(models.Model):
-    scanFinished = models.BooleanField(default=False)
-    scanId = models.CharField(max_length=256)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-
-    def check_scan_complete(self):
-        finished = self.scanFinished
-        return finished
-
-    def __str__(self):
-        return str(self.id) + " /nScan Complete = " + self.scanFinished
-
+        return str(self.id) + " " +self.network_name
 
 class VulnerabilityFamily(models.Model):
     family = models.CharField(max_length=32, blank=True, null=True)

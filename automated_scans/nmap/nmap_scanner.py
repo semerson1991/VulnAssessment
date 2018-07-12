@@ -11,15 +11,15 @@ class NmapScanner:
     def __init__(self):
         pass
 
-    def run_nmap_scan(self, targets, scan_id):
-        #nmap_proc = NmapProcess(targets="10.10.10.0/24", options="-A") # "-sS -A -v")
-        nmap_proc = NmapProcess(targets=targets, options="-O")  # "-sS -A -v")
+    def run_nmap_scan(self, targets, options, scan_id):
+        print ('nmap targets: ' + str(targets) + ' nmap options: '+ str(options))
+        nmap_proc = NmapProcess(targets=targets, options=options)
         nmap_proc.run_background()
 
         while nmap_proc.is_running():
-            print("Nmap Scan running: ETC: {0} DONE: {1}%".format(nmap_proc.etc,
-                                                                  nmap_proc.progress))
-        sleep(7)
+            print("Nmap Scan running: ETC: {0} DONE: {1}%".format(nmap_proc.etc, nmap_proc.progress))
+            sleep(7)
+
 
         #Store in file
         file_path = "/root/Desktop/FinalYearProjectRESTAPI/automated_scans/reports/"+str(scan_id)+".xml"
