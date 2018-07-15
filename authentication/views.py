@@ -13,8 +13,9 @@ from rest_framework.response import \
     Response  # Wrapper, the correct data is handled rather than having to manually do it ourself
 from rest_framework.views import APIView
 
+from authentication.pending_user_request import PendingUserRequest
 from automated_scans import vulnerability_assessment
-from authentication.models import NetworkType, UserNetworkConfig, NetworkDevice, AdminUsers
+from authentication.models import NetworkType, UserNetworkConfig, NetworkDevice, AdminUser
 from authentication.serializers import UserSerializer, NetworkTypeSerializer
 from authentication import utils
 from rest_framework.decorators import api_view
@@ -30,8 +31,10 @@ from automated_scans.results.scan_results import ScanResults
 from automated_scans.vulnerability_assessment import VulnerabilityAssessment
 from automated_scans.security import cryptography
 from threading import Thread
+from django.core.mail import EmailMessage
 
 vulnerability_assessment = VulnerabilityAssessment()
+pending_requests = []
 
 
 @csrf_exempt  # because we want to be able to POST to this view from clients that won't have a CSRF token we need to mark the view as csrf_exempt
@@ -98,6 +101,7 @@ def network_type_list(request, format=None):
     network_types_serialized = NetworkTypeSerializer(network_types, many=True)
     return Response(network_types_serialized.data)
 
+
 @csrf_exempt
 @api_view(['GET', 'POST', ])
 def register_network_config(request):
@@ -110,7 +114,7 @@ def register_network_config(request):
 
         network_device = NetworkDevice.objects.first()
 
-        print (username + ' ' + config_name + ' ' + network_type + ' ' + password)
+        print(username + ' ' + config_name + ' ' + network_type + ' ' + password)
 
         if network_device.password == password:
             if User.objects.filter(username=username).exists():
@@ -123,13 +127,13 @@ def register_network_config(request):
                 )
                 data = {'success': 'true'}
                 return Response(data=data, status=status.HTTP_200_OK)
-        data = {'success': 'false', 'reason':'incorrect_password'}
+        data = {'success': 'false', 'reason': 'incorrect_password'}
         return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
     data = {'success': 'false', 'reason': 'incorrect_password'}
     return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
 
-        # check is user exists (by username
-        # compare passwords
+    # check is user exists (by username
+    # compare passwords
 
 
 @csrf_exempt
@@ -141,37 +145,71 @@ def register_user(request):
         alias = request.POST.get('nickname', "")
         app_admin = request.POST.get('app-admin', "")
 
-        admin_users = AdminUsers.objects.all()
-        #if len(admin_users) > 0:
-         #   print('Admins exist. Requesting permission for newuser')
-          #  for user in admin_users.iterator():
-           #     user = User.objects.get(id=user.id)
-            #    print(user.email)
-            # data = {'success': 'false', 'reason': 'admin-approval-required'}
-            # return Response(data=data, status=status.HTTP_200_OK)
         if User.objects.filter(email=email).exists():
             print('user exists')
-            data = {'success': 'false', 'reason' : 'user-exists'}
+            data = {'success': 'false', 'reason': 'user-exists'}
             # json = JSONRenderer().render(data)
             # print(json)
             return Response(data=data, status=status.HTTP_409_CONFLICT)
-        if email != -1 and password != -1:
-            print('creating user')
-            User.objects.create(
-                email=email,
-                password=password,
-                username=alias,
-            )
-            if app_admin == "True":
-                print('Requested user as an admin')
-                AdminUsers.objects.create(
-                    user=User.objects.get(email=email)
-                )
-            data = {'success': 'true'}
+            # Check if this required admin approval
+        admin_users = AdminUser.objects.all()
+        if len(admin_users) > 0:
+            print('Admins exist. Requesting permission for the new user: '+alias)
+            admin_emails = ''
+            for admin in admin_users.iterator():
+                user = User.objects.get(id=admin.user_id)
+                admin_emails = admin_emails + user.email + " "
+            id = utils.sendEmail(alias, "create-user", admin_emails)
+            pendingUserRequest = PendingUserRequest()
+            pendingUserRequest.id = id
+            pendingUserRequest.password = password
+            pendingUserRequest.username = alias
+            pendingUserRequest.admin = app_admin
+            pendingUserRequest.email = email
+            pending_requests.append(pendingUserRequest)
+            data = {'success': 'false', 'reason': 'admin-approval-required'}
             return Response(data=data, status=status.HTTP_200_OK)
-        data = {'success': 'false'}
-        return Response(data=data, status=status.HTTP_204_NO_CONTENT)
 
+        print('creating user')
+        User.objects.create(
+            email=email,
+            password=password,
+            username=alias,
+        )
+        if app_admin == "True":
+            print('Requested user as an admin')
+            AdminUser.objects.create(
+                user=User.objects.get(email=email)
+            )
+
+        data = {'success': 'true'}
+        return Response(data=data, status=status.HTTP_200_OK)
+    data = {'success': 'false'}
+    return Response(data=data, status=status.HTTP_204_NO_CONTENT)
+
+
+@csrf_exempt
+@api_view(['GET', 'POST', ])
+def confirm_user(request):
+    if request.method == 'GET':
+        id = request.GET['id']
+        print('received request to confirm user')
+        for pending_request in pending_requests:
+            if str(pending_request.id) == id:
+                print('Creating approved user ' + pending_request.username)
+                User.objects.create(
+                    email=pending_request.email,
+                    password=pending_request.password,
+                    username=pending_request.username,
+                )
+                if pending_request.admin == "True":
+                    AdminUser.objects.create(
+                        user=User.objects.get(email=pending_request.email)
+                    )
+                data = {'success': 'true'}
+                return Response(data=data, status=status.HTTP_200_OK)
+    data = {'success': 'false'}
+    return Response(data=data, status=status.HTTP_200_OK)
 
 @csrf_exempt
 @api_view(['GET', 'POST', ])
@@ -184,7 +222,7 @@ def login_user(request):
         if User.objects.filter(email=email).exists():
             user = User.objects.get(email=email)
             if user.password == the_password:
-                data = {'success': 'true', 'nickname' : user.username}
+                data = {'success': 'true', 'nickname': user.username}
                 return Response(data=data, status=status.HTTP_200_OK)
         return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
     return Response(data=data, status=status.HTTP_401_UNAUTHORIZED)
@@ -201,7 +239,7 @@ def run_vulnerability_scan(request):
         hosts = request.POST['hosts']
         scan_type = request.POST['vulnerability-scan-type']
         key = '1234567890123456'.encode('utf-8')  # Add user key
-        print('Hosts to scan: ' +hosts)
+        print('Hosts to scan: ' + hosts)
 
     t1 = threading.Thread(target=vulnerability_assessment.run_openvas_scan, args=(scan_results, hosts, key, scan_type))
     t1.start()
@@ -235,21 +273,23 @@ def run_nmap_scan(request):
     jsonResponse = json.dumps(data, default=jsonDefault)
     return HttpResponse(jsonResponse, content_type="application/json", status=200)
 
+
 @csrf_exempt
 @api_view(['GET', 'POST', ])
 def check_scan_status(request):
-    data = {'action' : 'scan-status', 'scan-finished': 'false'}
+    data = {'action': 'scan-status', 'scan-finished': 'false'}
     if request.method == 'POST':
         scan_id = request.POST['scan-id']
     if vulnerability_assessment.scan_results:
         for scan_result in vulnerability_assessment.scan_results:
             if str(scan_result.scan_id) == scan_id:
                 if scan_result.error != '':
-                    data = {'action': 'scan-status', 'scan-finished': 'true', 'error' : scan_result.error}
+                    data = {'action': 'scan-status', 'scan-finished': 'true', 'error': scan_result.error}
                     json_response = json.dumps(data, default=jsonDefault)
-                    return HttpResponse(json_response, content_type="application/json", status=status.HTTP_404_NOT_FOUND)
+                    return HttpResponse(json_response, content_type="application/json",
+                                        status=status.HTTP_404_NOT_FOUND)
                 if scan_result.results_collected is True:
-                    data = {'action' : 'scan-status', 'scan-finished': 'true'}
+                    data = {'action': 'scan-status', 'scan-finished': 'true'}
                     json_response = json.dumps(data, default=jsonDefault)
                     return HttpResponse(json_response, content_type="application/json", status=status.HTTP_200_OK)
     json_response = json.dumps(data, default=jsonDefault)
@@ -288,6 +328,7 @@ def get_pending_results(request):
     json_response = json.dumps(data, default=jsonDefault)
     return HttpResponse(json_response, content_type="application/json")
 
+
 @csrf_exempt
 @api_view(['GET', 'POST', ])
 def get_stored_results(request):
@@ -303,12 +344,12 @@ def get_stored_results(request):
         if results_type == 'openvas-results':
             print("Retrieving OpenVas result")
             openvas_result = OpenVasResults()
-            openvas_report = openvas_result.get_results(path+ str(scan_id) + path_prefix, key)
+            openvas_report = openvas_result.get_results(path + str(scan_id) + path_prefix, key)
             scan_result.openvas_result.append(openvas_report)
         if results_type == 'nmap-results':
             print("Retrieving Network Mapping Results")
             nmap_result = NmapResult()
-            nmap_result.get_results(path+ str(scan_id) + path_prefix, key)
+            nmap_result.get_results(path + str(scan_id) + path_prefix, key)
             scan_result.nmap_result = nmap_result
 
         json_response = json.dumps(scan_result, default=jsonDefault)
@@ -321,6 +362,8 @@ def get_stored_results(request):
     data = {'error': 'Unable to retrieve results'}
     json_response = json.dumps(data, default=jsonDefault)
     return HttpResponse(json_response, content_type="application/json")
+
+
 '''
     config_name = models.CharField(max_length=256)
     device=models.ForeignKey(NetworkDevice, on_delete=models.CASCADE)

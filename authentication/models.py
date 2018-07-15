@@ -6,7 +6,7 @@ import bcrypt
 from django.contrib.auth.models import User
 
 
-class AdminUsers(models.Model):
+class AdminUser(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
     def __str__(self):

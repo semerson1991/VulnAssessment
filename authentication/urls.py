@@ -6,6 +6,8 @@ from authentication import views
 urlpatterns = [
 
     url(r'^register-user/$', views.register_user),
+    url(r'^confirm-user/$', views.confirm_user),
+
     url(r'^login-user/$', views.login_user),
     url(r'^register-network-config/$', views.register_network_config),
 
